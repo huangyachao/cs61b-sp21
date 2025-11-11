@@ -94,6 +94,101 @@ public class Model extends Observable {
         setChanged();
     }
 
+    /**
+     * Returns true if at least one space on the Board is empty.
+     * Empty spaces are stored as null.
+     *
+     */
+    public static boolean emptySpaceExists(Board b) {
+        // TODO: Fill in this function.
+        for (Tile tile : b) {
+            if (tile == null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns true if any tile is equal to the maximum valid value.
+     * Maximum valid value is given by MAX_PIECE. Note that
+     * given a Tile object t, we get its value with t.value().
+     */
+    public static boolean maxTileExists(Board b) {
+        // TODO: Fill in this function.
+        for (Tile tile : b) {
+            if (tile != null && tile.value() == MAX_PIECE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Determine whether game is over.
+     */
+    private static boolean checkGameOver(Board b) {
+        return maxTileExists(b) || !atLeastOneMoveExists(b);
+    }
+
+    /**
+     * Returns true if there are any valid moves on the board.
+     * There are two ways that there can be valid moves:
+     * 1. There is at least one empty space on the board.
+     * 2. There are two adjacent tiles with the same value.
+     */
+    public static boolean atLeastOneMoveExists(Board b) {
+        // TODO: Fill in this function.
+        int size = b.size();
+        for (int i = 0; i < size; i++) {
+            for (int j = 0; j < size; j++) {
+                if (b.tile(i, j) == null) {
+                    return true;
+                }
+                if (j + 1 < size && (b.tile(i, j + 1) == null || b.tile(i, j).value() == b.tile(i, j + 1).value())) {
+                    return true;
+                }
+                if (i + 1 < size && (b.tile(i + 1, j) == null || b.tile(i, j).value() == b.tile(i + 1, j).value())) {
+                    return true;
+                }
+
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Checks if the game is over and sets the gameOver variable
+     * appropriately.
+     */
+    private void checkGameOver() {
+        gameOver = checkGameOver(board);
+    }
+
+    private boolean tiltOneColumn(int col) {
+        int moveStep = 0;
+        boolean changed = false;
+        Tile preTile = null;
+        for (int row = size() - 1; row >= 0; --row) {
+            Tile tile = board.tile(col, row);
+            if (tile == null) {
+                ++moveStep;
+                continue;
+            } else if (preTile != null && preTile.value() == tile.value()) {
+                ++moveStep;
+            }
+            preTile = tile;
+            if (moveStep != 0) {
+                if (board.move(col, row + moveStep, tile)) {
+                    preTile = null;
+                    this.score += tile.value() * 2;
+                }
+                changed = true;
+            }
+        }
+        return changed;
+    }
+
     /** Tilt the board toward SIDE. Return true iff this changes the board.
      *
      * 1. If two Tile objects are adjacent in the direction of motion and have
@@ -113,53 +208,20 @@ public class Model extends Observable {
         // TODO: Modify this.board (and perhaps this.score) to account
         // for the tilt to the Side SIDE. If the board changed, set the
         // changed local variable to true.
+        board.setViewingPerspective(side);
+
+        for (int col = 0; col < size(); ++col) {
+            if (tiltOneColumn(col)) {
+                changed = true;
+            }
+        }
+        board.setViewingPerspective(Side.NORTH);
 
         checkGameOver();
         if (changed) {
             setChanged();
         }
         return changed;
-    }
-
-    /** Checks if the game is over and sets the gameOver variable
-     *  appropriately.
-     */
-    private void checkGameOver() {
-        gameOver = checkGameOver(board);
-    }
-
-    /** Determine whether game is over. */
-    private static boolean checkGameOver(Board b) {
-        return maxTileExists(b) || !atLeastOneMoveExists(b);
-    }
-
-    /** Returns true if at least one space on the Board is empty.
-     *  Empty spaces are stored as null.
-     * */
-    public static boolean emptySpaceExists(Board b) {
-        // TODO: Fill in this function.
-        return false;
-    }
-
-    /**
-     * Returns true if any tile is equal to the maximum valid value.
-     * Maximum valid value is given by MAX_PIECE. Note that
-     * given a Tile object t, we get its value with t.value().
-     */
-    public static boolean maxTileExists(Board b) {
-        // TODO: Fill in this function.
-        return false;
-    }
-
-    /**
-     * Returns true if there are any valid moves on the board.
-     * There are two ways that there can be valid moves:
-     * 1. There is at least one empty space on the board.
-     * 2. There are two adjacent tiles with the same value.
-     */
-    public static boolean atLeastOneMoveExists(Board b) {
-        // TODO: Fill in this function.
-        return false;
     }
 
 
