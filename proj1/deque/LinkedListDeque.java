@@ -3,7 +3,7 @@ package deque;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class LinkedListDeque<T> {
+public class LinkedListDeque<T> implements Deque<T> {
     private int size;
     private Node<T> head;
     private Node<T> tail;
@@ -18,6 +18,7 @@ public class LinkedListDeque<T> {
         this.tail.next = this.head;
     }
 
+    @Override
     public void addFirst(T item) {
         Node<T> itemNode = new Node<>(item);
         itemNode.prev = this.head;
@@ -27,6 +28,7 @@ public class LinkedListDeque<T> {
         ++this.size;
     }
 
+    @Override
     public void addLast(T item) {
         Node<T> itemNode = new Node<>(item);
         itemNode.prev = this.tail.prev;
@@ -36,14 +38,12 @@ public class LinkedListDeque<T> {
         ++this.size;
     }
 
-    public boolean isEmpty() {
-        return this.size() == 0;
-    }
-
+    @Override
     public int size() {
         return this.size;
     }
 
+    @Override
     public void printDeque() {
         NodeIterator it = new NodeIterator();
         while (it.hasNext()) {
@@ -52,6 +52,7 @@ public class LinkedListDeque<T> {
         System.out.println();
     }
 
+    @Override
     public T removeFirst() {
         Node<T> node = this.head.next;
         if (node == this.tail) {
@@ -64,6 +65,7 @@ public class LinkedListDeque<T> {
         return data;
     }
 
+    @Override
     public T removeLast() {
         Node<T> node = this.tail.prev;
         if (node == this.head) {
@@ -76,6 +78,7 @@ public class LinkedListDeque<T> {
         return data;
     }
 
+    @Override
     public T get(int index) {
         Node<T> node = this.head.next;
         for (int i = 0; i < index; i++) {

@@ -3,7 +3,7 @@ package deque;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class ArrayDeque<T> {
+public class ArrayDeque<T> implements Deque<T> {
     private int front;
     private int size;
     private int capacity;
@@ -27,6 +27,7 @@ public class ArrayDeque<T> {
         front = 0;
     }
 
+    @Override
     public void addFirst(T item) {
         if (size() == capacity) {
             resizeNewArray(capacity * 2);
@@ -36,6 +37,7 @@ public class ArrayDeque<T> {
         size++;
     }
 
+    @Override
     public void addLast(T item) {
         if (size() == capacity) {
             resizeNewArray(capacity * 2);
@@ -44,14 +46,12 @@ public class ArrayDeque<T> {
         size++;
     }
 
-    public boolean isEmpty() {
-        return this.size() == 0;
-    }
-
+    @Override
     public int size() {
         return size;
     }
 
+    @Override
     public void printDeque() {
         ArrayDeque<T>.NodeIterator it = new ArrayDeque<T>.NodeIterator();
         while (it.hasNext()) {
@@ -60,6 +60,7 @@ public class ArrayDeque<T> {
         System.out.println();
     }
 
+    @Override
     public T removeFirst() {
         if (size() == 0) {
             return null;
@@ -74,6 +75,7 @@ public class ArrayDeque<T> {
         return temp;
     }
 
+    @Override
     public T removeLast() {
         if (size() == 0) {
             return null;
@@ -88,6 +90,7 @@ public class ArrayDeque<T> {
         return temp;
     }
 
+    @Override
     public T get(int index) {
         if (index >= size()) {
             return null;
@@ -112,7 +115,7 @@ public class ArrayDeque<T> {
         return !(it1.hasNext() || it2.hasNext());
     }
 
-    private class NodeIterator implements Iterator<T> {
+    protected class NodeIterator implements Iterator<T> {
         private int index = front;
 
         @Override
