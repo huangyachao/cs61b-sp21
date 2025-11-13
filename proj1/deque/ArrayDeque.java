@@ -3,7 +3,7 @@ package deque;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class ArrayDeque<T> implements Deque<T> {
+public class ArrayDeque<T> implements Iterable<T>, Deque<T> {
     private int front;
     private int size;
     private int capacity;
@@ -98,6 +98,7 @@ public class ArrayDeque<T> implements Deque<T> {
         return data[(front + index) % capacity];
     }
 
+    @Override
     public Iterator<T> iterator() {
         return new NodeIterator();
     }
@@ -110,12 +111,14 @@ public class ArrayDeque<T> implements Deque<T> {
         Iterator<T> it1 = this.iterator();
         Iterator<?> it2 = other.iterator();
         while (it1.hasNext() && it2.hasNext()) {
-            if (!Objects.equals(it1.next(), it2.next())) return false;
+            if (!Objects.equals(it1.next(), it2.next())) {
+                return false;
+            }
         }
         return !(it1.hasNext() || it2.hasNext());
     }
 
-    protected class NodeIterator implements Iterator<T> {
+    private class NodeIterator implements Iterator<T> {
         private int index = front;
 
         @Override

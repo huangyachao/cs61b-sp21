@@ -3,7 +3,7 @@ package deque;
 import java.util.Iterator;
 import java.util.Objects;
 
-public class LinkedListDeque<T> implements Deque<T> {
+public class LinkedListDeque<T> implements Iterable<T>, Deque<T> {
     private int size;
     private Node<T> head;
     private Node<T> tail;
@@ -45,7 +45,7 @@ public class LinkedListDeque<T> implements Deque<T> {
 
     @Override
     public void printDeque() {
-        NodeIterator it = new NodeIterator();
+        Iterator<T> it = iterator();
         while (it.hasNext()) {
             System.out.print(it.next() + " ");
         }
@@ -90,6 +90,7 @@ public class LinkedListDeque<T> implements Deque<T> {
         return node.data;
     }
 
+    @Override
     public Iterator<T> iterator() {
         return new NodeIterator();
     }
@@ -102,18 +103,20 @@ public class LinkedListDeque<T> implements Deque<T> {
         Iterator<T> it1 = this.iterator();
         Iterator<?> it2 = other.iterator();
         while (it1.hasNext() && it2.hasNext()) {
-            if (!Objects.equals(it1.next(), it2.next())) return false;
+            if (!Objects.equals(it1.next(), it2.next())) {
+                return false;
+            }
         }
         return !(it1.hasNext() || it2.hasNext());
 
     }
 
-    static private class Node<T> {
-        public T data;
-        public Node<T> prev;
-        public Node<T> next;
+    private static class Node<T> {
+        private T data;
+        private Node<T> prev;
+        private Node<T> next;
 
-        public Node(T data) {
+        Node(T data) {
             this.data = data;
             this.prev = null;
             this.next = null;
@@ -138,5 +141,4 @@ public class LinkedListDeque<T> implements Deque<T> {
             return data;
         }
     }
-
 }
