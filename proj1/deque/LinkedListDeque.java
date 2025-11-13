@@ -90,6 +90,20 @@ public class LinkedListDeque<T> implements Iterable<T>, Deque<T> {
         return node.data;
     }
 
+    private T helper(int index, Node<T> node) {
+        if (index == 0) {
+            return node.data;
+        }
+        return helper(index - 1, node.next);
+    }
+    public T getRecursive(int index) {
+        if (index < 0 || index >= this.size) {
+            return null;
+        }
+        Node<T> node = this.head.next;
+        return helper(index, node);
+    }
+
     @Override
     public Iterator<T> iterator() {
         return new NodeIterator();
