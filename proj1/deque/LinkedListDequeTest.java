@@ -142,19 +142,29 @@ public class LinkedListDequeTest {
     public void Equalest() {
 
         LinkedListDeque<Integer> lld1 = new LinkedListDeque<Integer>();
+        ArrayDeque<Integer> ad1 = new ArrayDeque<>();
         for (int i = 0; i < 1000; i++) {
             lld1.addLast(i);
+            ad1.addLast(i);
         }
+        assertTrue(lld1.equals(ad1));
+
         LinkedListDeque<Integer> lld2 = new LinkedListDeque<Integer>();
         for (int i = 0; i < 1000; i++) {
             lld2.addLast(i);
         }
         assertEquals(lld1, lld2);
 
+        lld2.removeLast();
+        assertNotEquals(lld1, lld2);
+
         LinkedListDeque<String> lld3 = new LinkedListDeque<String>();
         assertNotEquals(lld1, lld3);
 
         String lld4 = "";
         assertNotEquals(lld1, lld4);
+
+        LinkedListDeque<String> lld5 = new LinkedListDeque<>();
+        assertEquals(lld3, lld5);
     }
 }
