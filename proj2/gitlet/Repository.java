@@ -32,7 +32,7 @@ public class Repository {
     public static final File BLOBS_DIR = join(GITLET_DIR, "blobs");
     public static final File STAGE_FILE = join(GITLET_DIR, "stage");
     public static final File REFS_FILE = join(GITLET_DIR, "refs");
-    public static final File HEAD_FILE = join(GITLET_DIR, "HEAD");// commitId → Commit
+    public static final File HEAD_FILE = join(GITLET_DIR, "HEAD"); // commitId → Commit
 
     private static void saveCurrentBranch(String currentBranch) {
         writeContents(HEAD_FILE, currentBranch);
@@ -476,8 +476,8 @@ public class Repository {
 
         getFileStatus(workfileNames, modifiedFiles, untrackedFiles);
         if (!untrackedFiles.isEmpty()) {
-            System.out.println("There is an untracked file in the way; delete it, or add and " +
-                    "commit it first");
+            System.out.println("There is an untracked file in the way; delete it, or add and "
+                    + "commit it first");
             return;
         }
 
@@ -512,5 +512,31 @@ public class Repository {
         }
         saveCurrentBranch(currentBranch);
 
+    }
+
+    public static void branch(String branch) {
+        HashMap<String, String> refs = getRefs();
+        if (refs.containsKey(branch)) {
+            System.out.println("A branch with that name already exists.");
+            return;
+        }
+        String commitId = getCurrentCommitId();
+        refs.put(branch, commitId);
+        saveRefs(refs);
+    }
+
+    public static void rmBranch(String branch) {
+        HashMap<String, String> refs = getRefs();
+        if (!refs.containsKey(branch)) {
+            System.out.println("A branch with that name does not exists.");
+            return;
+        }
+        String currentBranch = getCurrentBranch();
+        if (branch.equals(currentBranch)) {
+            System.out.println("Cannot remove the current branch.");
+            return;
+        }
+        refs.remove(branch);
+        saveRefs(refs);
     }
 }

@@ -97,11 +97,16 @@ public class Main {
                 }
                 break;
             case "branch":
-                validateInitialized();
+                validateOperands(firstArg, args, 2);
+                if (validateInitialized()) {
+                    Repository.branch(args[1]);
+                }
                 break;
             case "rm-branch":
                 validateOperands(firstArg, args, 2);
-                validateInitialized();
+                if (validateInitialized()) {
+                    Repository.rmBranch(args[1]);
+                }
                 break;
             case "reset":
                 validateOperands(firstArg, args, 2);
