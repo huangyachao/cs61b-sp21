@@ -110,7 +110,9 @@ public class Main {
                 break;
             case "reset":
                 validateOperands(firstArg, args, 2);
-                validateInitialized();
+                if (validateInitialized()) {
+                    Repository.reset(args[1]);
+                }
                 break;
             case "merge":
                 validateOperands(firstArg, args, 2);

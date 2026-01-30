@@ -465,53 +465,9 @@ public class Repository {
             System.out.println("No need to checkout the current branch.");
             return;
         }
-        //获取modified和untracked文件
-        TreeMap<String, String> modifiedFiles = new TreeMap<>();
-        TreeSet<String> untrackedFiles = new TreeSet<>();
-        List<String> fileNames = plainFilenamesIn(CWD);
-        TreeSet<String> workfileNames = new TreeSet<>();
-        if (fileNames != null) {
-            workfileNames = new TreeSet<>(fileNames);
-        }
-
-        getFileStatus(workfileNames, modifiedFiles, untrackedFiles);
-        if (!untrackedFiles.isEmpty()) {
-            System.out.println("There is an untracked file in the way; delete it, or add and "
-                    + "commit it first");
-            return;
-        }
-
-        Stage stage = getStage();
-        stage.clear();
-        saveStage(stage);
-
-        for (String fileName : workfileNames) {
-            File workFile = new File(CWD, fileName);
-            if (!workFile.delete()) {
-                throw error("Failed to delete file " + fileName);
-            }
-        }
-
         String commitId = refs.get(branch);
-        Commit commit = getCommit(commitId);
-        Map<String, String> commitFiles = commit.getFileToBlobMap();
-        for (Map.Entry<String, String> entry : commitFiles.entrySet()) {
-            String fileName = entry.getKey();
-            String blobId = entry.getValue();
-            File commitFile = new File(BLOBS_DIR, blobId);
-            String contents = readContentsAsString(commitFile);
-            File workFile = new File(CWD, fileName);
-            try {
-                if (!workFile.createNewFile()) {
-                    throw error("Failed to create refs file.");
-                }
-            } catch (IOException e) {
-                throw error("Failed to create refs file.");
-            }
-            writeContents(workFile, contents);
-        }
+        reset(commitId);
         saveCurrentBranch(currentBranch);
-
     }
 
     public static void branch(String branch) {
@@ -538,5 +494,57 @@ public class Repository {
         }
         refs.remove(branch);
         saveRefs(refs);
+    }
+
+    public static void reset(String commitId) {
+        Commit commit = getCommit(commitId);
+        if (commit == null) {
+            System.out.println("No commit with that id exists.");
+            return;
+        }
+
+        //获取modified和untracked文件
+        TreeMap<String, String> modifiedFiles = new TreeMap<>();
+        TreeSet<String> untrackedFiles = new TreeSet<>();
+        List<String> fileNames = plainFilenamesIn(CWD);
+        TreeSet<String> workfileNames = new TreeSet<>();
+        if (fileNames != null) {
+            workfileNames = new TreeSet<>(fileNames);
+        }
+
+        getFileStatus(workfileNames, modifiedFiles, untrackedFiles);
+        if (!untrackedFiles.isEmpty()) {
+            System.out.println("There is an untracked file in the way; delete it, or add and "
+                    + "commit it first.");
+            return;
+        }
+
+        Stage stage = getStage();
+        stage.clear();
+        saveStage(stage);
+
+        for (String fileName : workfileNames) {
+            File workFile = new File(CWD, fileName);
+            if (!workFile.delete()) {
+                throw error("Failed to delete file " + fileName);
+            }
+        }
+
+        Map<String, String> commitFiles = commit.getFileToBlobMap();
+        for (Map.Entry<String, String> entry : commitFiles.entrySet()) {
+            String fileName = entry.getKey();
+            String blobId = entry.getValue();
+            File commitFile = new File(BLOBS_DIR, blobId);
+            String contents = readContentsAsString(commitFile);
+            File workFile = new File(CWD, fileName);
+            try {
+                if (!workFile.createNewFile()) {
+                    throw error("Failed to create refs file.");
+                }
+            } catch (IOException e) {
+                throw error("Failed to create refs file.");
+            }
+            writeContents(workFile, contents);
+        }
     }
 }
