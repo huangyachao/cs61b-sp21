@@ -24,72 +24,106 @@ public class Main {
         switch (firstArg) {
             case "init":
                 validateOperands(firstArg, args, 1);
-                Repository.init();
+                if (Repository.isInitialized()) {
+                    System.out.println("A Gitlet version-control system already exists in the current " +
+                            "directory.");
+                } else {
+                    Repository.init();
+                }
                 break;
             case "add":
                 validateOperands(firstArg, args, 2);
-                Repository.add(args[1]);
+                if (validateInitialized()) {
+                    Repository.add(args[1]);
+                }
+
                 break;
             case "commit":
                 validateOperands(firstArg, args, 2);
                 if (Objects.equals(args[1], "")) {
                     System.out.println("Please enter a commit message.");
                 }
-                Repository.commit(args[1]);
+                if (validateInitialized()) {
+                    Repository.commit(args[1]);
+                }
                 break;
             case "rm":
                 validateOperands(firstArg, args, 2);
-                Repository.rm(args[1]);
+                if (validateInitialized()) {
+                    Repository.rm(args[1]);
+                }
                 break;
             case "log":
                 validateOperands(firstArg, args, 1);
-                Repository.log();
+                if (validateInitialized()) {
+                    Repository.log();
+                }
                 break;
             case "global-log":
                 validateOperands(firstArg, args, 1);
-                Repository.globalLog();
+                if (validateInitialized()) {
+                    Repository.globalLog();
+                }
                 break;
             case "find":
                 validateOperands(firstArg, args, 2);
-                Repository.find(args[1]);
+                if (validateInitialized()) {
+                    Repository.find(args[1]);
+                }
                 break;
             case "status":
                 validateOperands(firstArg, args, 1);
-                Repository.status();
+                if (validateInitialized()) {
+                    Repository.status();
+                }
                 break;
             case "checkout":
-                if (args.length == 2) {
-                    Repository.checkoutBranch(args[1]);
-                } else if (args.length == 3) {
-                    if (!Objects.equals(args[1], "--")) {
-                        System.out.println("Incorrect operands.");
-                    } else {
-                        Repository.checkoutFile(args[2], null);
-                    }
-                } else if (args.length == 4) {
-                    if (!Objects.equals(args[2], "--")) {
-                        System.out.println("Incorrect operands.");
-                    } else {
-                        Repository.checkoutFile(args[3], args[1]);
+                if (validateInitialized()) {
+                    if (args.length == 2) {
+                        Repository.checkoutBranch(args[1]);
+                    } else if (args.length == 3) {
+                        if (!Objects.equals(args[1], "--")) {
+                            System.out.println("Incorrect operands.");
+                        } else {
+                            Repository.checkoutFile(args[2], null);
+                        }
+                    } else if (args.length == 4) {
+                        if (!Objects.equals(args[2], "--")) {
+                            System.out.println("Incorrect operands.");
+                        } else {
+                            Repository.checkoutFile(args[3], args[1]);
+                        }
                     }
                 }
                 break;
             case "branch":
+                validateInitialized();
                 break;
             case "rm-branch":
                 validateOperands(firstArg, args, 2);
+                validateInitialized();
                 break;
             case "reset":
                 validateOperands(firstArg, args, 2);
+                validateInitialized();
                 break;
             case "merge":
                 validateOperands(firstArg, args, 2);
+                validateInitialized();
                 break;
 
             default:
                 System.out.println("No command with that name exists.");
                 break;
         }
+    }
+
+    public static boolean validateInitialized() {
+        if (!Repository.isInitialized()) {
+            System.out.println("Not in a initialized Gitlet directory.");
+            return false;
+        }
+        return true;
     }
 
     public static void validateOperands(String cmd, String[] args, int n) {

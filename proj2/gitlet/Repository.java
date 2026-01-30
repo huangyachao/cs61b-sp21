@@ -91,14 +91,11 @@ public class Repository {
         return getCommit(currentCommitId);
     }
 
-    public static void init() {
-        // 已存在（不论是文件还是目录）
-        if (GITLET_DIR.exists()) {
-            System.out.println("A Gitlet version-control system already exists in the current " +
-                    "directory.");
-            return;
-        }
+    public static boolean isInitialized() {
+        return GITLET_DIR.exists();
+    }
 
+    public static void init() {
         // 不存在，尝试创建
         if (!GITLET_DIR.mkdirs()) {
             throw error("Failed to create .gitlet directory.");

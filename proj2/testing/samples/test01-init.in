@@ -7,3 +7,6 @@ E .gitlet/blobs
 E .gitlet/stage
 E .gitlet/refs
 E .gitlet/HEAD
+> init
+A Gitlet version-control system already exists in the current directory.
+<<<
