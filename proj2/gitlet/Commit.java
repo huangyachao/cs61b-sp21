@@ -1,26 +1,55 @@
 package gitlet;
 
-// TODO: any imports you need here
 
+import java.io.Serializable;
 import java.util.Date; // TODO: You'll likely use this in this class
+import java.util.Map;
 
 /** Represents a gitlet commit object.
- *  TODO: It's a good idea to give a description here of what else this Class
  *  does at a high level.
  *
- *  @author TODO
+ *  @author haya
  */
-public class Commit {
-    /**
-     * TODO: add instance variables here.
-     *
-     * List all instance variables of the Commit class here with a useful
-     * comment above them describing what that variable represents and how that
-     * variable is used. We've provided one example for `message`.
-     */
-
+public class Commit implements Serializable {
     /** The message of this Commit. */
     private String message;
+    private Date timestamp;
+    private Map<String,String> fileToBlobMap;
+    private String parent;
 
-    /* TODO: fill in the rest of this class. */
+
+    public Commit(String message,Date timestamp,Map<String,String> fileToBlobMap,String parent){
+        this.message = message;
+        this.timestamp = timestamp;
+        this.fileToBlobMap = fileToBlobMap;
+        this.parent = parent;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+    public void setMessage(String message) {
+        this.message = message;
+    }
+    public Date getTimestamp() {
+        return timestamp;
+    }
+    public void setTimestamp(Date timestamp) {
+        this.timestamp = timestamp;
+    }
+    public Map<String,String> getFileToBlobMap() {
+        return fileToBlobMap;
+    }
+    public void setFileToBlobMap(Map<String,String> fileToBlobMap) {
+        this.fileToBlobMap = fileToBlobMap;
+    }
+    public String getParent() {
+        return parent;
+    }
+    public void setParent(String parent) {
+        this.parent = parent;
+    }
+    public String toString() {
+        return message+timestamp.toString()+fileToBlobMap.toString()+parent;
+    }
 }

@@ -2,3 +2,8 @@
 > init
 <<<
 E .gitlet
+E .gitlet/commits
+E .gitlet/blobs
+E .gitlet/stage
+E .gitlet/refs
+E .gitlet/HEAD
