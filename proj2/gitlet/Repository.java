@@ -393,7 +393,7 @@ public class Repository {
 
         //打印stage文件
         Stage stage = getStage();
-        System.out.println("=== Stages Files ===");
+        System.out.println("=== Staged Files ===");
         Map<String, String> addFiles = stage.getAddFiles();
         for (String fileName : addFiles.keySet()) {
             System.out.println(fileName);
