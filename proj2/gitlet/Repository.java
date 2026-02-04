@@ -440,11 +440,13 @@ public class Repository {
         Commit commit = getCommit(commitId);
         if (commit == null) {
             System.out.println("No commit with that id exists.");
+            return;
         }
 
         Map<String, String> commitFiles = commit.getFileToBlobMap();
         if (!commitFiles.containsKey(fileName)) {
             System.out.println("File does not exist in that commit.");
+            return;
         }
 
         String blobId = commitFiles.get(fileName);
@@ -467,7 +469,7 @@ public class Repository {
         }
         String commitId = refs.get(branch);
         reset(commitId);
-        saveCurrentBranch(currentBranch);
+        saveCurrentBranch(branch);
     }
 
     public static void branch(String branch) {
