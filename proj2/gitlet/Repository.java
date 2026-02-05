@@ -2,7 +2,6 @@ package gitlet;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -71,18 +70,18 @@ public class Repository {
         return readObject(STAGE_FILE, Stage.class);
     }
 
-    private static void saveRefs(Map<String, String> branches) {
-        writeObject(REFS_FILE, (Serializable) branches);
+    private static void saveRefs(TreeMap<String, String> branches) {
+        writeObject(REFS_FILE, branches);
     }
 
     @SuppressWarnings("unchecked")
-    private static HashMap<String, String> getRefs() {
-        return readObject(REFS_FILE, HashMap.class);
+    private static TreeMap<String, String> getRefs() {
+        return readObject(REFS_FILE, TreeMap.class);
     }
 
     private static String getCurrentCommitId() {
         String currentBranch = getCurrentBranch();
-        HashMap<String, String> refs = getRefs();
+        TreeMap<String, String> refs = getRefs();
         return refs.get(currentBranch);
     }
 
@@ -127,7 +126,6 @@ public class Repository {
         if (!BLOBS_DIR.mkdirs()) {
             throw error("Failed to create blobs directory.");
         }
-
         try {
             if (!STAGE_FILE.createNewFile()) {
                 throw error("Failed to create stage file.");
@@ -146,7 +144,7 @@ public class Repository {
         } catch (IOException e) {
             throw error("Failed to create refs file.");
         }
-        Map<String, String> branches = new HashMap<>();
+        TreeMap<String, String> branches = new TreeMap<>();
         branches.put(currentBranch, sha);
         saveRefs(branches);
         //创建refs文件，用于保存每个分支的head
@@ -230,7 +228,7 @@ public class Repository {
         saveCommit(newCommit, commitId);
 
         //更新分支HEAD
-        HashMap<String, String> refs = getRefs();
+        TreeMap<String, String> refs = getRefs();
         String currentBranch = getCurrentBranch();
         refs.put(currentBranch, commitId);
         saveRefs(refs);
@@ -378,7 +376,7 @@ public class Repository {
 
     public static void status() {
         //打印分支信息
-        HashMap<String, String> refs = getRefs();
+        TreeMap<String, String> refs = getRefs();
         String currentBranch = getCurrentBranch();
         System.out.println("=== Branches ===");
         for (String branchName : refs.keySet()) {
@@ -457,7 +455,7 @@ public class Repository {
     }
 
     public static void checkoutBranch(String branch) {
-        HashMap<String, String> refs = getRefs();
+        TreeMap<String, String> refs = getRefs();
         String currentBranch = getCurrentBranch();
         if (!refs.containsKey(branch)) {
             System.out.println("No such branch exists.");
@@ -468,12 +466,12 @@ public class Repository {
             return;
         }
         String commitId = refs.get(branch);
-        reset(commitId);
+        reset(branch, commitId);
         saveCurrentBranch(branch);
     }
 
     public static void branch(String branch) {
-        HashMap<String, String> refs = getRefs();
+        TreeMap<String, String> refs = getRefs();
         if (refs.containsKey(branch)) {
             System.out.println("A branch with that name already exists.");
             return;
@@ -484,7 +482,7 @@ public class Repository {
     }
 
     public static void rmBranch(String branch) {
-        HashMap<String, String> refs = getRefs();
+        TreeMap<String, String> refs = getRefs();
         if (!refs.containsKey(branch)) {
             System.out.println("A branch with that name does not exists.");
             return;
@@ -498,7 +496,7 @@ public class Repository {
         saveRefs(refs);
     }
 
-    public static void reset(String commitId) {
+    public static void reset(String branch, String commitId) {
         Commit commit = getCommit(commitId);
         if (commit == null) {
             System.out.println("No commit with that id exists.");
@@ -524,6 +522,13 @@ public class Repository {
         Stage stage = getStage();
         stage.clear();
         saveStage(stage);
+
+        if (branch == null) {
+            branch = getCurrentBranch();
+        }
+        TreeMap<String, String> refs = getRefs();
+        refs.put(branch, commitId);
+        saveRefs(refs);
 
         for (String fileName : workfileNames) {
             File workFile = new File(CWD, fileName);
