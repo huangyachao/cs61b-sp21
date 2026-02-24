@@ -133,7 +133,7 @@ public class Repository {
         } catch (IOException e) {
             throw error("Failed to create stage file.");
         }
-        Stage stage = new Stage(new HashMap<String, String>(), new HashMap<String, String>());
+        Stage stage = new Stage(new HashMap<String, String>(), new HashSet<>());
         saveStage(stage);
 
         //创建refs文件，用于保存每个分支的head
@@ -210,7 +210,7 @@ public class Repository {
     public static void commit(String message) {
         Stage stage = getStage();
         Map<String, String> addedFiles = stage.getAddFiles();
-        Map<String, String> removeFiles = stage.getRemoveFiles();
+        Set<String> removeFiles = stage.getRemoveFiles();
 
         //确认是否有修改
         if (addedFiles.isEmpty() && removeFiles.isEmpty()) {
@@ -239,7 +239,7 @@ public class Repository {
     }
 
     private static Commit getNewCommit(String message, Map<String, String> addedFiles,
-                                       Map<String, String> removeFiles) {
+                                       Set<String> removeFiles) {
         Commit currentCommit = getCurrentCommit();
         Date timestamp = new Date();
         Map<String, String> commitFiles = currentCommit.getFileToBlobMap();
@@ -249,11 +249,12 @@ public class Repository {
             commitFiles.put(key, value);
         }
 
-        for (String fileName : removeFiles.keySet()) {
+        for (String fileName : removeFiles) {
             commitFiles.remove(fileName);
         }
         String currentCommitId = getCurrentCommitId();
-        return new Commit(message, timestamp, commitFiles, currentCommitId);
+        List<String> list = List.of(currentCommitId);
+        return new Commit(message, timestamp, commitFiles, list);
     }
 
     public static void rm(String fileName) {
@@ -275,7 +276,7 @@ public class Repository {
             if (oldBlobFile.exists() && !oldBlobFile.delete()) {
                 throw error("Failed to delete file " + fileName);
             }
-            stage.removeFile(fileName, oldBlobId);
+            stage.removeFile(fileName);
             stageIsChanged = true;
         }
         if (stageIsChanged) {
@@ -343,7 +344,7 @@ public class Repository {
                                       TreeSet<String> untrackedFiles) {
         Stage stage = getStage();
         Map<String, String> addedFiles = stage.getAddFiles();
-        Map<String, String> removeFiles = stage.getRemoveFiles();
+        Set<String> removeFiles = stage.getRemoveFiles();
         Commit newCommit = null;
 
         //确认是否有修改
@@ -399,8 +400,8 @@ public class Repository {
         System.out.println();
 
         System.out.println("=== Removed Files ===");
-        Map<String, String> removedFiles = stage.getRemoveFiles();
-        for (String fileName : removedFiles.keySet()) {
+        Set<String> removedFiles = stage.getRemoveFiles();
+        for (String fileName : removedFiles) {
             System.out.println(fileName);
         }
         System.out.println();
@@ -409,12 +410,12 @@ public class Repository {
         TreeMap<String, String> modifiedFiles = new TreeMap<>();
         TreeSet<String> untrackedFiles = new TreeSet<>();
         List<String> fileNames = plainFilenamesIn(CWD);
-        TreeSet<String> workfileNames = new TreeSet<>();
+        TreeSet<String> workFileNames = new TreeSet<>();
         if (fileNames != null) {
-            workfileNames = new TreeSet<>(fileNames);
+            workFileNames = new TreeSet<>(fileNames);
         }
 
-        getFileStatus(workfileNames, modifiedFiles, untrackedFiles);
+        getFileStatus(workFileNames, modifiedFiles, untrackedFiles);
         System.out.println("=== Modifications Not Staged For Commit ===");
         for (Map.Entry<String, String> entry : modifiedFiles.entrySet()) {
             String key = entry.getKey();
@@ -507,12 +508,12 @@ public class Repository {
         TreeMap<String, String> modifiedFiles = new TreeMap<>();
         TreeSet<String> untrackedFiles = new TreeSet<>();
         List<String> fileNames = plainFilenamesIn(CWD);
-        TreeSet<String> workfileNames = new TreeSet<>();
+        TreeSet<String> workFileNames = new TreeSet<>();
         if (fileNames != null) {
-            workfileNames = new TreeSet<>(fileNames);
+            workFileNames = new TreeSet<>(fileNames);
         }
 
-        getFileStatus(workfileNames, modifiedFiles, untrackedFiles);
+        getFileStatus(workFileNames, modifiedFiles, untrackedFiles);
         if (!untrackedFiles.isEmpty()) {
             System.out.println("There is an untracked file in the way; delete it, or add and "
                     + "commit it first.");
@@ -530,7 +531,7 @@ public class Repository {
         refs.put(branch, commitId);
         saveRefs(refs);
 
-        for (String fileName : workfileNames) {
+        for (String fileName : workFileNames) {
             File workFile = new File(CWD, fileName);
             if (!workFile.delete()) {
                 throw error("Failed to delete file " + fileName);
@@ -552,6 +553,225 @@ public class Repository {
                 throw error("Failed to create refs file.");
             }
             writeContents(workFile, contents);
+        }
+    }
+
+    private static HashSet<String> getAllParents(String commitId) {
+        HashSet<String> parents = new HashSet<>();
+        Commit commit = getCommit(commitId);
+        if (commit == null) {
+            throw error("commitId " + commitId + " does not exist.");
+        }
+        parents.add(commitId);
+        while (commit.getParent() != null) {
+            commitId = commit.getParent();
+            parents.add(commitId);
+            commit = getCommit(commitId);
+            if (commit == null) {
+                throw error("commitId " + commitId + " does not exist.");
+            }
+        }
+        return parents;
+    }
+
+    private static String getSplitPoint(String commitId1, String commitId2) {
+        HashSet<String> parents = getAllParents(commitId1);
+        if (!parents.contains(commitId2)) {
+            return commitId2;
+        }
+
+
+        Commit commit = getCommit(commitId2);
+        if (commit == null) {
+            throw error("commitId " + commitId2 + " does not exist.");
+        }
+        while (commit.getParent() != null) {
+            commitId2 = commit.getParent();
+            if (parents.contains(commitId2)) {
+                return commitId2;
+            }
+            commit = getCommit(commitId2);
+            if (commit == null) {
+                throw error("commitId " + commitId2 + " does not exist.");
+            }
+        }
+        throw error("Fail to get split point.");
+    }
+
+    private static void getFilestatus(String commitId1,
+                                      String commitId2,
+                                      TreeMap<String, String> modifiedFiles) {
+        Commit commit1 = getCommit(commitId1);
+        if (commit1 == null) {
+            throw error("commitId " + commitId1 + " does not exist.");
+        }
+        Commit commit2 = getCommit(commitId2);
+        if (commit2 == null) {
+            throw error("commitId " + commitId2 + " does not exist.");
+        }
+        Map<String, String> fileMap1 = commit1.getFileToBlobMap();
+        Map<String, String> fileMap2 = commit2.getFileToBlobMap();
+
+        Set<String> unionKeys = new HashSet<>(fileMap1.keySet());
+        unionKeys.addAll(fileMap2.keySet());
+        for (String fileName : unionKeys) {
+            boolean exists1 = fileMap1.containsKey(fileName);
+            boolean exists2 = fileMap2.containsKey(fileName);
+            if (!exists1 && !exists2) {
+                throw error("file " + fileName + " does not exist.");
+            } else if (exists1 && !exists2) {
+                modifiedFiles.put(fileName, "deleted");
+            } else {
+                modifiedFiles.put(fileName, fileMap2.get(fileName));
+            }
+        }
+    }
+
+    private static boolean mergeAllFiles(Set<String> unionKeys, TreeMap<String,
+                                                 String> currentBranchModifiedFiles,
+                                         TreeMap<String, String> targetBranchModifiedFiles) {
+        boolean conflict = false;
+        for (String fileName : unionKeys) {
+            boolean exists1 = currentBranchModifiedFiles.containsKey(fileName);
+            boolean exists2 = targetBranchModifiedFiles.containsKey(fileName);
+            if (!exists1 && !exists2) {
+                throw new IllegalArgumentException("file " + fileName + " does not exist.");
+            } else if (exists1 && !exists2) {
+                continue;
+            } else if (!exists1 && exists2) {
+                String blobId = targetBranchModifiedFiles.get(fileName);
+                File workFile = new File(CWD, fileName);
+                if (Objects.equals(blobId, "deleted")) {
+                    rm(fileName);
+                } else {
+                    File newFile = new File(BLOBS_DIR, blobId);
+                    String contents = readContentsAsString(newFile);
+                    if (!workFile.exists()) {
+                        try {
+                            if (!workFile.createNewFile()) {
+                                throw error("Failed to create work file.");
+                            }
+                        } catch (IOException e) {
+                            throw error("Failed to create work file.");
+                        }
+                    }
+                    writeContents(workFile, contents);
+                    add(fileName);
+                }
+            } else {
+                String blobId1 = currentBranchModifiedFiles.get(fileName);
+                String blobId2 = targetBranchModifiedFiles.get(fileName);
+                if (blobId1.equals(blobId2)) {
+                    continue;
+                }
+
+                String contents1 = "";
+                if (!blobId1.equals("deleted")) {
+                    File newFile = new File(BLOBS_DIR, blobId1);
+                    contents1 = readContentsAsString(newFile);
+                }
+                String contents2 = "";
+                if (!blobId2.equals("deleted")) {
+                    File newFile = new File(BLOBS_DIR, blobId2);
+                    contents2 = readContentsAsString(newFile);
+                }
+                String newContents = "<<<<<<< HEAD\n"
+                        + contents1
+                        + "=======\n"
+                        + contents2
+                        + ">>>>>>>";
+
+                File workFile = new File(CWD, fileName);
+                if (!workFile.exists()) {
+                    try {
+                        if (!workFile.createNewFile()) {
+                            throw error("Failed to create work file.");
+                        }
+                    } catch (IOException e) {
+                        throw error("Failed to create work file.");
+                    }
+                }
+                writeContents(workFile, newContents);
+                add(fileName);
+                conflict = true;
+            }
+        }
+        return conflict;
+    }
+
+    public static void merge(String branch) {
+        //确认是否有未提交的修改
+        Stage stage = getStage();
+        Map<String, String> addedFiles = stage.getAddFiles();
+        Set<String> removeFiles = stage.getRemoveFiles();
+        if (!addedFiles.isEmpty() || !removeFiles.isEmpty()) {
+            System.out.println("You have uncommitted changes");
+            return;
+        }
+
+        //确认分支是否存在
+        TreeMap<String, String> refs = getRefs();
+        if (!refs.containsKey(branch)) {
+            System.out.println("A branch with that name does not exists.");
+            return;
+        }
+
+        //确认是否为当前分支
+        String branchName = getCurrentBranch();
+        if (branchName.equals(branch)) {
+            System.out.println("Cannot merge a branch with itself.");
+            return;
+        }
+
+        String currentBranchCommitId = getCurrentCommitId();
+        String targetBranchCommitId = refs.get(branch);
+        String splitPoint = getSplitPoint(currentBranchCommitId, targetBranchCommitId);
+        if (splitPoint.equals(targetBranchCommitId)) {
+            System.out.println("Given branch is an ancestor of the current branch.");
+            return;
+        }
+
+        if (splitPoint.equals(currentBranchCommitId)) {
+            reset(null, targetBranchCommitId);
+            System.out.println("Current branch fast-forwarded.");
+            return;
+        }
+
+        TreeMap<String, String> currentBranchModifiedFiles = new TreeMap<>();
+        getFilestatus(splitPoint, currentBranchCommitId, currentBranchModifiedFiles);
+        TreeMap<String, String> targetBranchModifiedFiles = new TreeMap<>();
+        getFilestatus(splitPoint, targetBranchCommitId, targetBranchModifiedFiles);
+
+        Set<String> unionKeys = new HashSet<>(currentBranchModifiedFiles.keySet());
+        unionKeys.addAll(targetBranchModifiedFiles.keySet());
+
+        //检查untrackdeFile是否被覆盖或者删除
+        TreeMap<String, String> modifiedFiles = new TreeMap<>();
+        TreeSet<String> untrackedFiles = new TreeSet<>();
+        List<String> fileNames = plainFilenamesIn(CWD);
+        TreeSet<String> workFileNames = new TreeSet<>();
+        if (fileNames != null) {
+            workFileNames = new TreeSet<>(fileNames);
+        }
+
+        getFileStatus(workFileNames, modifiedFiles, untrackedFiles);
+        for (String fileName : untrackedFiles) {
+            if (unionKeys.contains(fileName)) {
+                System.out.println("There is an untracked file in the way; delete it, "
+                        + "or add and commit it first.");
+                return;
+            }
+        }
+
+        boolean conflict = mergeAllFiles(unionKeys,
+                currentBranchModifiedFiles,
+                targetBranchModifiedFiles);
+
+        //检查所有文件
+
+        commit("Merged " + branch + " into " + branchName);
+        if (conflict) {
+            System.out.println("Encountered a merge conflict.");
         }
     }
 }

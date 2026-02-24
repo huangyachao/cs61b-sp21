@@ -3,6 +3,7 @@ package gitlet;
 
 import java.io.Serializable;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -18,11 +19,11 @@ public class Commit implements Serializable {
     private String message;
     private Date timestamp;
     private Map<String, String> fileToBlobMap;
-    private String parent;
+    private List<String> parent;
 
 
     public Commit(String message, Date timestamp, Map<String, String> fileToBlobMap,
-                  String parent) {
+                  List<String> parent) {
         this.message = message;
         this.timestamp = timestamp;
         this.fileToBlobMap = fileToBlobMap;
@@ -54,10 +55,13 @@ public class Commit implements Serializable {
     }
 
     public String getParent() {
-        return parent;
+        if (this.parent == null) {
+            return null;
+        }
+        return parent.get(0);
     }
 
-    public void setParent(String parent) {
+    public void setParent(List<String> parent) {
         this.parent = parent;
     }
 

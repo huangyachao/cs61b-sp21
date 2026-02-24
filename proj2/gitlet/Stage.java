@@ -2,13 +2,14 @@ package gitlet;
 
 import java.io.Serializable;
 import java.util.Map;
+import java.util.Set;
 
 public class Stage implements Serializable {
     private final Map<String, String> addFiles;    //file name -> hash id
-    private final Map<String, String> removeFiles; //file name -> hash id
+    private final Set<String> removeFiles; //file name -> hash id
 
 
-    public Stage(Map<String, String> addFiles, Map<String, String> removeFiles) {
+    public Stage(Map<String, String> addFiles, Set<String> removeFiles) {
         this.addFiles = addFiles;
         this.removeFiles = removeFiles;
     }
@@ -22,8 +23,8 @@ public class Stage implements Serializable {
         addFiles.remove(fileName);
     }
 
-    public void removeFile(String fileName, String blobId) {
-        removeFiles.put(fileName, blobId);
+    public void removeFile(String fileName) {
+        removeFiles.add(fileName);
         addFiles.remove(fileName);
     }
 
@@ -35,15 +36,11 @@ public class Stage implements Serializable {
         return addFiles.get(fileName);
     }
 
-    public String getRemoveBlobId(String fileName) {
-        return removeFiles.get(fileName);
-    }
-
     public Map<String, String> getAddFiles() {
         return addFiles;
     }
 
-    public Map<String, String> getRemoveFiles() {
+    public Set<String> getRemoveFiles() {
         return removeFiles;
     }
 

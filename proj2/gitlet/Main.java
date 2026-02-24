@@ -116,7 +116,9 @@ public class Main {
                 break;
             case "merge":
                 validateOperands(firstArg, args, 2);
-                validateInitialized();
+                if (validateInitialized()) {
+                    Repository.merge(args[1]);
+                }
                 break;
 
             default:
