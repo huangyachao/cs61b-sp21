@@ -44,7 +44,7 @@ public class Main {
                     System.out.println("Please enter a commit message.");
                 }
                 if (validateInitialized()) {
-                    Repository.commit(args[1]);
+                    Repository.commit(args[1], null);
                 }
                 break;
             case "rm":

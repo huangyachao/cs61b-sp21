@@ -65,6 +65,10 @@ public class Commit implements Serializable {
         this.parent = parent;
     }
 
+    public List<String> getAllParents() {
+        return this.parent;
+    }
+
     public String toString() {
         return message + timestamp.toString() + fileToBlobMap.toString() + parent;
     }

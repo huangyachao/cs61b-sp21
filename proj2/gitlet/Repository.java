@@ -207,7 +207,7 @@ public class Repository {
         writeContents(stashFile, (Object) contents);
     }
 
-    public static void commit(String message) {
+    public static void commit(String message, String parent) {
         Stage stage = getStage();
         Map<String, String> addedFiles = stage.getAddFiles();
         Set<String> removeFiles = stage.getRemoveFiles();
@@ -221,7 +221,7 @@ public class Repository {
 //        System.out.println("removeFiles:"+removeFiles.toString());
 
         //生成新的commit
-        Commit newCommit = getNewCommit(message, addedFiles, removeFiles);
+        Commit newCommit = getNewCommit(message, addedFiles, removeFiles, parent);
 
         //保存commit
         String commitId = sha1(newCommit.toString());
@@ -239,7 +239,7 @@ public class Repository {
     }
 
     private static Commit getNewCommit(String message, Map<String, String> addedFiles,
-                                       Set<String> removeFiles) {
+                                       Set<String> removeFiles, String parent) {
         Commit currentCommit = getCurrentCommit();
         Date timestamp = new Date();
         Map<String, String> commitFiles = currentCommit.getFileToBlobMap();
@@ -253,7 +253,11 @@ public class Repository {
             commitFiles.remove(fileName);
         }
         String currentCommitId = getCurrentCommitId();
-        List<String> list = List.of(currentCommitId);
+        List<String> list = new ArrayList<>();
+        list.add(currentCommitId);
+        if (parent != null) {
+            list.add(parent);
+        }
         return new Commit(message, timestamp, commitFiles, list);
     }
 
@@ -281,7 +285,7 @@ public class Repository {
         }
         if (stageIsChanged) {
 //            Map<String,String> addedFiles = stage.getAddFiles();
-//            Map<String,String> removeFiles = stage.getRemoveFiles();
+//            Set<String> removeFiles = stage.getRemoveFiles();
 //            System.out.println("addedFiles:"+addedFiles.toString());
 //            System.out.println("removeFiles:"+removeFiles.toString());
             saveStage(stage);
@@ -351,7 +355,7 @@ public class Repository {
         if (addedFiles.isEmpty() && removeFiles.isEmpty()) {
             newCommit = getCurrentCommit();
         } else {
-            newCommit = getNewCommit("", addedFiles, removeFiles);
+            newCommit = getNewCommit("", addedFiles, removeFiles, null);
         }
 
         Set<String> union = new HashSet<>(workFiles);
@@ -563,12 +567,11 @@ public class Repository {
             throw error("commitId " + commitId + " does not exist.");
         }
         parents.add(commitId);
-        while (commit.getParent() != null) {
-            commitId = commit.getParent();
-            parents.add(commitId);
-            commit = getCommit(commitId);
-            if (commit == null) {
-                throw error("commitId " + commitId + " does not exist.");
+        List<String> allParents = commit.getAllParents();
+        if (allParents != null) {
+            for (String parentId : allParents) {
+                HashSet<String> children = getAllParents(parentId);
+                parents.addAll(children);
             }
         }
         return parents;
@@ -576,10 +579,9 @@ public class Repository {
 
     private static String getSplitPoint(String commitId1, String commitId2) {
         HashSet<String> parents = getAllParents(commitId1);
-        if (!parents.contains(commitId2)) {
+        if (parents.contains(commitId2)) {
             return commitId2;
         }
-
 
         Commit commit = getCommit(commitId2);
         if (commit == null) {
@@ -621,8 +623,14 @@ public class Repository {
                 throw error("file " + fileName + " does not exist.");
             } else if (exists1 && !exists2) {
                 modifiedFiles.put(fileName, "deleted");
-            } else {
+            } else if (!exists1 && exists2) {
                 modifiedFiles.put(fileName, fileMap2.get(fileName));
+            } else {
+                String blobId1 = fileMap1.get(fileName);
+                String blobId2 = fileMap2.get(fileName);
+                if (!blobId1.equals(blobId2)) {
+                    modifiedFiles.put(fileName, blobId2);
+                }
             }
         }
     }
@@ -679,7 +687,7 @@ public class Repository {
                         + contents1
                         + "=======\n"
                         + contents2
-                        + ">>>>>>>";
+                        + ">>>>>>>\n";
 
                 File workFile = new File(CWD, fileName);
                 if (!workFile.exists()) {
@@ -699,7 +707,7 @@ public class Repository {
         return conflict;
     }
 
-    public static void merge(String branch) {
+    public static void merge(String targetBranch) {
         //确认是否有未提交的修改
         Stage stage = getStage();
         Map<String, String> addedFiles = stage.getAddFiles();
@@ -711,21 +719,24 @@ public class Repository {
 
         //确认分支是否存在
         TreeMap<String, String> refs = getRefs();
-        if (!refs.containsKey(branch)) {
+        if (!refs.containsKey(targetBranch)) {
             System.out.println("A branch with that name does not exists.");
             return;
         }
 
         //确认是否为当前分支
-        String branchName = getCurrentBranch();
-        if (branchName.equals(branch)) {
+        String currentBranch = getCurrentBranch();
+        if (currentBranch.equals(targetBranch)) {
             System.out.println("Cannot merge a branch with itself.");
             return;
         }
 
         String currentBranchCommitId = getCurrentCommitId();
-        String targetBranchCommitId = refs.get(branch);
+        String targetBranchCommitId = refs.get(targetBranch);
+//        System.out.println("Target branch commit id: " + targetBranchCommitId);
+//        System.out.println("current branch commit id: " + currentBranchCommitId);
         String splitPoint = getSplitPoint(currentBranchCommitId, targetBranchCommitId);
+//        System.out.println("Split point: " + splitPoint);
         if (splitPoint.equals(targetBranchCommitId)) {
             System.out.println("Given branch is an ancestor of the current branch.");
             return;
@@ -741,7 +752,6 @@ public class Repository {
         getFilestatus(splitPoint, currentBranchCommitId, currentBranchModifiedFiles);
         TreeMap<String, String> targetBranchModifiedFiles = new TreeMap<>();
         getFilestatus(splitPoint, targetBranchCommitId, targetBranchModifiedFiles);
-
         Set<String> unionKeys = new HashSet<>(currentBranchModifiedFiles.keySet());
         unionKeys.addAll(targetBranchModifiedFiles.keySet());
 
@@ -763,13 +773,16 @@ public class Repository {
             }
         }
 
+//        System.out.println("unionKeys: " + unionKeys);
+//        System.out.println("currentBranchModifiedFiles: " + currentBranchModifiedFiles);
+//        System.out.println("targetBranchModifiedFiles: " + targetBranchModifiedFiles);
         boolean conflict = mergeAllFiles(unionKeys,
                 currentBranchModifiedFiles,
                 targetBranchModifiedFiles);
 
         //检查所有文件
-
-        commit("Merged " + branch + " into " + branchName);
+        commit("Merged " + targetBranch + " into " + currentBranch + ".",
+                targetBranchCommitId);
         if (conflict) {
             System.out.println("Encountered a merge conflict.");
         }
