@@ -43,7 +43,14 @@ public class Repository {
 
     private static void saveCommit(Commit commit, String sha) {
 
-        final File commitFile = join(COMMITS_DIR, sha);
+        String dirName = sha.substring(0, 2);
+        final File dir = join(COMMITS_DIR, dirName);
+        if (!dir.exists()) {
+            if (!dir.mkdir()) {
+                throw new RuntimeException("Could not create directory: " + dir.getAbsolutePath());
+            }
+        }
+        final File commitFile = join(dir, sha);
         try {
             if (!commitFile.createNewFile()) {
                 throw error("Failed to create commit file.");
@@ -55,9 +62,28 @@ public class Repository {
     }
 
     private static Commit getCommit(String sha) {
-        final File commitFile = join(COMMITS_DIR, sha);
-        if (!commitFile.exists()) {
+
+        String dirName = sha.substring(0, 2);
+        final File dir = join(COMMITS_DIR, dirName);
+        if (!dir.exists()) {
             return null;
+        }
+
+        String commitFileName = "";
+        List<String> fileNames = plainFilenamesIn(dir);
+        if (fileNames == null || fileNames.isEmpty()) {
+            throw error("No commits found.");
+        }
+
+        for (String fileName : fileNames) {
+            if (fileName.equals(sha) || fileName.startsWith(sha)) {
+                commitFileName = fileName;
+            }
+        }
+
+        final File commitFile = join(dir, commitFileName);
+        if (!commitFile.exists()) {
+            throw error("Failed to find commit file.");
         }
         return readObject(commitFile, Commit.class);
     }
@@ -315,26 +341,36 @@ public class Repository {
     }
 
     public static void globalLog() {
-        List<String> fileNames = plainFilenamesIn(COMMITS_DIR);
+        File[] directories = COMMITS_DIR.listFiles(File::isDirectory);
+        if (directories != null) {
+            for (File directory : directories) {
+                List<String> fileNames = plainFilenamesIn(directory);
 
-        if (fileNames != null) {
-            for (String fileName : fileNames) {
-                Commit commit = getCommit(fileName);
-                printCommit(commit, fileName);
+                if (fileNames != null) {
+                    for (String fileName : fileNames) {
+                        Commit commit = getCommit(fileName);
+                        printCommit(commit, fileName);
+                    }
+                }
             }
         }
+
     }
 
     public static void find(String message) {
-        List<String> fileNames = plainFilenamesIn(COMMITS_DIR);
         boolean found = false;
-
-        if (fileNames != null) {
-            for (String fileName : fileNames) {
-                Commit commit = getCommit(fileName);
-                if (commit.getMessage().equals(message)) {
-                    found = true;
-                    System.out.println(fileName);
+        File[] directories = COMMITS_DIR.listFiles(File::isDirectory);
+        if (directories != null) {
+            for (File directory : directories) {
+                List<String> fileNames = plainFilenamesIn(directory);
+                if (fileNames != null) {
+                    for (String fileName : fileNames) {
+                        Commit commit = getCommit(fileName);
+                        if (commit.getMessage().equals(message)) {
+                            found = true;
+                            System.out.println(fileName);
+                        }
+                    }
                 }
             }
         }
