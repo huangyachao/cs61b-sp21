@@ -31,20 +31,23 @@ public class Repository {
     public static final File BLOBS_DIR = join(GITLET_DIR, "blobs");
     public static final File STAGE_FILE = join(GITLET_DIR, "stage");
     public static final File REFS_FILE = join(GITLET_DIR, "refs");
+    public static final File REMOTE_FILE = join(GITLET_DIR, "remote");
     public static final File HEAD_FILE = join(GITLET_DIR, "HEAD"); // commitId → Commit
 
-    private static void saveCurrentBranch(String currentBranch) {
-        writeContents(HEAD_FILE, currentBranch);
+    private static void saveCurrentBranch(String currentBranch, File gitDir) {
+        File headFIle = join(gitDir, "HEAD");
+        writeContents(headFIle, currentBranch);
     }
 
-    private static String getCurrentBranch() {
+    private static String getCurrentBranch(File gitDir) {
+        File headFIle = join(gitDir, "HEAD");
         return readContentsAsString(HEAD_FILE);
     }
 
-    private static void saveCommit(Commit commit, String sha) {
-
+    private static void saveCommit(Commit commit, String sha, File gitDir) {
+        File commitDir = join(gitDir, "commits");
         String dirName = sha.substring(0, 2);
-        final File dir = join(COMMITS_DIR, dirName);
+        final File dir = join(commitDir, dirName);
         if (!dir.exists()) {
             if (!dir.mkdir()) {
                 throw new RuntimeException("Could not create directory: " + dir.getAbsolutePath());
@@ -61,15 +64,38 @@ public class Repository {
         writeObject(commitFile, commit);
     }
 
-    private static Commit getCommit(String sha) {
+    private static String readBlob(String blobId, File gitDir) {
+        File blobDir = join(gitDir, "blobs");
+        File blobFIle = new File(blobDir, blobId);
+        return readContentsAsString(blobFIle);
+    }
+
+    private static void saveBlob(String content, String blobId, File gitDir) {
+        final File blobDir = join(gitDir, "blobs");
+        final File blobFile = join(blobDir, blobId);
+        if (blobFile.exists()) {
+            return;
+        }
+        try {
+            if (!blobFile.createNewFile()) {
+                throw error("Failed to create commit file.");
+            }
+        } catch (IOException e) {
+            System.out.println("Failed to create commit file.");
+        }
+        writeContents(blobFile, content);
+    }
+
+    private static Commit getCommit(String sha, File gitDir) {
+        File commitDir = join(gitDir, "commits");
 
         String dirName = sha.substring(0, 2);
-        final File dir = join(COMMITS_DIR, dirName);
+        final File dir = join(commitDir, dirName);
         if (!dir.exists()) {
             return null;
         }
 
-        String commitFileName = "";
+        String commitFileName = null;
         List<String> fileNames = plainFilenamesIn(dir);
         if (fileNames == null || fileNames.isEmpty()) {
             throw error("No commits found.");
@@ -81,6 +107,10 @@ public class Repository {
             }
         }
 
+        if (commitFileName == null) {
+            return null;
+        }
+
         final File commitFile = join(dir, commitFileName);
         if (!commitFile.exists()) {
             throw error("Failed to find commit file.");
@@ -88,32 +118,46 @@ public class Repository {
         return readObject(commitFile, Commit.class);
     }
 
-    private static void saveStage(Stage stage) {
-        writeObject(STAGE_FILE, stage);
+    private static void saveStage(Stage stage, File gitDir) {
+
+        File stageFile = join(gitDir, "stage");
+        writeObject(stageFile, stage);
     }
 
-    private static Stage getStage() {
-        return readObject(STAGE_FILE, Stage.class);
+    private static Stage getStage(File gitDir) {
+        File stageFile = join(gitDir, "stage");
+        return readObject(stageFile, Stage.class);
     }
 
-    private static void saveRefs(TreeMap<String, String> branches) {
-        writeObject(REFS_FILE, branches);
+    private static void saveRefs(TreeMap<String, String> branches, File gitDir) {
+        File refsFile = join(gitDir, "refs");
+        writeObject(refsFile, branches);
     }
 
     @SuppressWarnings("unchecked")
-    private static TreeMap<String, String> getRefs() {
-        return readObject(REFS_FILE, TreeMap.class);
+    private static TreeMap<String, String> getRefs(File gitDir) {
+        File refsFile = join(gitDir, "refs");
+        return readObject(refsFile, TreeMap.class);
     }
 
-    private static String getCurrentCommitId() {
-        String currentBranch = getCurrentBranch();
-        TreeMap<String, String> refs = getRefs();
+    private static void saveRemoteInfo(TreeMap<String, String> remoteInfo) {
+        writeObject(REMOTE_FILE, remoteInfo);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static TreeMap<String, String> getRemoteInfo() {
+        return readObject(REMOTE_FILE, TreeMap.class);
+    }
+
+    private static String getCurrentCommitId(File gitDir) {
+        String currentBranch = getCurrentBranch(gitDir);
+        TreeMap<String, String> refs = getRefs(gitDir);
         return refs.get(currentBranch);
     }
 
-    private static Commit getCurrentCommit() {
-        String currentCommitId = getCurrentCommitId();
-        return getCommit(currentCommitId);
+    private static Commit getCurrentCommit(File gitDir) {
+        String currentCommitId = getCurrentCommitId(gitDir);
+        return getCommit(currentCommitId, gitDir);
     }
 
     public static boolean isInitialized() {
@@ -135,7 +179,7 @@ public class Repository {
             System.out.println("Failed to create HEAD file.");
         }
         String currentBranch = "master";
-        saveCurrentBranch(currentBranch);
+        saveCurrentBranch(currentBranch, GITLET_DIR);
 
 
         //创建commits目录，用于存储commit
@@ -146,7 +190,7 @@ public class Repository {
         //存储初始commit message
         Commit commit = new Commit("initial commit", new Date(0L), new HashMap<>(), null);
         String sha = sha1(commit.toString());
-        saveCommit(commit, sha);
+        saveCommit(commit, sha, GITLET_DIR);
 
         //创建blobs目录,用于存储已提交文件
         if (!BLOBS_DIR.mkdirs()) {
@@ -160,7 +204,7 @@ public class Repository {
             throw error("Failed to create stage file.");
         }
         Stage stage = new Stage(new HashMap<String, String>(), new HashSet<>());
-        saveStage(stage);
+        saveStage(stage, GITLET_DIR);
 
         //创建refs文件，用于保存每个分支的head
         try {
@@ -172,9 +216,18 @@ public class Repository {
         }
         TreeMap<String, String> branches = new TreeMap<>();
         branches.put(currentBranch, sha);
-        saveRefs(branches);
-        //创建refs文件，用于保存每个分支的head
+        saveRefs(branches, GITLET_DIR);
 
+        //创建remote文件，用于保存远程分支的信息
+        try {
+            if (!REMOTE_FILE.createNewFile()) {
+                throw error("Failed to create refs file.");
+            }
+        } catch (IOException e) {
+            throw error("Failed to create refs file.");
+        }
+        TreeMap<String, String> remoteInfo = new TreeMap<>();
+        saveRemoteInfo(remoteInfo);
     }
 
     static void add(String fileName) {
@@ -184,7 +237,7 @@ public class Repository {
             return;
         }
 
-        Stage stage = getStage();
+        Stage stage = getStage(GITLET_DIR);
 
         String oldBlobId = stage.getStashBlobId(fileName);
         if (oldBlobId != null) {
@@ -198,7 +251,7 @@ public class Repository {
         byte[] contents = readContents(file);
         String newBlobId = sha1((Object) contents);
 
-        Commit currentCommit = getCurrentCommit();
+        Commit currentCommit = getCurrentCommit(GITLET_DIR);
         Map<String, String> commitFiles = currentCommit.getFileToBlobMap();
 
         //检查文件是否被修改
@@ -206,7 +259,7 @@ public class Repository {
                 newBlobId)) {
             //文件未被修改
             stage.unremoveFile(fileName);
-            saveStage(stage);
+            saveStage(stage, GITLET_DIR);
             return;
         }
 
@@ -223,7 +276,7 @@ public class Repository {
             throw error("Failed to create new stash file " + fileName);
         }
         stage.stageFile(fileName, newBlobId);
-        saveStage(stage);
+        saveStage(stage, GITLET_DIR);
 
 //        Map<String,String> addedFiles = stage.getAddFiles();
 //        Map<String,String> removeFiles = stage.getRemoveFiles();
@@ -234,7 +287,7 @@ public class Repository {
     }
 
     public static void commit(String message, String parent) {
-        Stage stage = getStage();
+        Stage stage = getStage(GITLET_DIR);
         Map<String, String> addedFiles = stage.getAddFiles();
         Set<String> removeFiles = stage.getRemoveFiles();
 
@@ -251,22 +304,22 @@ public class Repository {
 
         //保存commit
         String commitId = sha1(newCommit.toString());
-        saveCommit(newCommit, commitId);
+        saveCommit(newCommit, commitId, GITLET_DIR);
 
         //更新分支HEAD
-        TreeMap<String, String> refs = getRefs();
-        String currentBranch = getCurrentBranch();
+        TreeMap<String, String> refs = getRefs(GITLET_DIR);
+        String currentBranch = getCurrentBranch(GITLET_DIR);
         refs.put(currentBranch, commitId);
-        saveRefs(refs);
+        saveRefs(refs, GITLET_DIR);
 
         //清除stash文件
         stage.clear();
-        saveStage(stage);
+        saveStage(stage, GITLET_DIR);
     }
 
     private static Commit getNewCommit(String message, Map<String, String> addedFiles,
                                        Set<String> removeFiles, String parent) {
-        Commit currentCommit = getCurrentCommit();
+        Commit currentCommit = getCurrentCommit(GITLET_DIR);
         Date timestamp = new Date();
         Map<String, String> commitFiles = currentCommit.getFileToBlobMap();
         for (Map.Entry<String, String> entry : addedFiles.entrySet()) {
@@ -278,7 +331,7 @@ public class Repository {
         for (String fileName : removeFiles) {
             commitFiles.remove(fileName);
         }
-        String currentCommitId = getCurrentCommitId();
+        String currentCommitId = getCurrentCommitId(GITLET_DIR);
         List<String> list = new ArrayList<>();
         list.add(currentCommitId);
         if (parent != null) {
@@ -288,7 +341,7 @@ public class Repository {
     }
 
     public static void rm(String fileName) {
-        Stage stage = getStage();
+        Stage stage = getStage(GITLET_DIR);
         String oldBlobId = stage.getStashBlobId(fileName);
         boolean stageIsChanged = false;
         if (oldBlobId != null) {
@@ -299,7 +352,7 @@ public class Repository {
             stage.unstageFile(fileName);
             stageIsChanged = true;
         }
-        Commit currentCommit = getCurrentCommit();
+        Commit currentCommit = getCurrentCommit(GITLET_DIR);
         Map<String, String> commitedFile = currentCommit.getFileToBlobMap();
         if (commitedFile.containsKey(fileName)) {
             File oldBlobFile = join(CWD, fileName);
@@ -314,7 +367,7 @@ public class Repository {
 //            Set<String> removeFiles = stage.getRemoveFiles();
 //            System.out.println("addedFiles:"+addedFiles.toString());
 //            System.out.println("removeFiles:"+removeFiles.toString());
-            saveStage(stage);
+            saveStage(stage, GITLET_DIR);
         } else {
             System.out.println("No reason to remove the file.");
         }
@@ -332,9 +385,9 @@ public class Repository {
     }
 
     public static void log() {
-        String currentCommitId = getCurrentCommitId();
+        String currentCommitId = getCurrentCommitId(GITLET_DIR);
         while (currentCommitId != null) {
-            Commit currentCommit = getCommit(currentCommitId);
+            Commit currentCommit = getCommit(currentCommitId, GITLET_DIR);
             printCommit(currentCommit, currentCommitId);
             currentCommitId = currentCommit.getParent();
         }
@@ -348,7 +401,7 @@ public class Repository {
 
                 if (fileNames != null) {
                     for (String fileName : fileNames) {
-                        Commit commit = getCommit(fileName);
+                        Commit commit = getCommit(fileName, GITLET_DIR);
                         printCommit(commit, fileName);
                     }
                 }
@@ -365,7 +418,7 @@ public class Repository {
                 List<String> fileNames = plainFilenamesIn(directory);
                 if (fileNames != null) {
                     for (String fileName : fileNames) {
-                        Commit commit = getCommit(fileName);
+                        Commit commit = getCommit(fileName, GITLET_DIR);
                         if (commit.getMessage().equals(message)) {
                             found = true;
                             System.out.println(fileName);
@@ -381,15 +434,16 @@ public class Repository {
 
     private static void getFileStatus(Set<String> workFiles,
                                       TreeMap<String, String> modifiedFiles,
-                                      TreeSet<String> untrackedFiles) {
-        Stage stage = getStage();
+                                      TreeSet<String> untrackedFiles,
+                                      File gitDir) {
+        Stage stage = getStage(gitDir);
         Map<String, String> addedFiles = stage.getAddFiles();
         Set<String> removeFiles = stage.getRemoveFiles();
         Commit newCommit = null;
 
         //确认是否有修改
         if (addedFiles.isEmpty() && removeFiles.isEmpty()) {
-            newCommit = getCurrentCommit();
+            newCommit = getCurrentCommit(gitDir);
         } else {
             newCommit = getNewCommit("", addedFiles, removeFiles, null);
         }
@@ -404,7 +458,8 @@ public class Repository {
             } else if (!workFiles.contains(fileName) && commitFiles.contains(fileName)) {
                 modifiedFiles.put(fileName, "deleted");
             } else {
-                File workFile = join(CWD, fileName);
+                File workDir = gitDir.getParentFile();
+                File workFile = join(workDir, fileName);
                 String workFileContents = readContentsAsString(workFile);
                 String hash = sha1(workFileContents);
                 if (!hash.equals(newCommit.getFileToBlobMap().get(fileName))) {
@@ -417,8 +472,8 @@ public class Repository {
 
     public static void status() {
         //打印分支信息
-        TreeMap<String, String> refs = getRefs();
-        String currentBranch = getCurrentBranch();
+        TreeMap<String, String> refs = getRefs(GITLET_DIR);
+        String currentBranch = getCurrentBranch(GITLET_DIR);
         System.out.println("=== Branches ===");
         for (String branchName : refs.keySet()) {
             if (branchName.equals(currentBranch)) {
@@ -431,7 +486,7 @@ public class Repository {
 
 
         //打印stage文件
-        Stage stage = getStage();
+        Stage stage = getStage(GITLET_DIR);
         System.out.println("=== Staged Files ===");
         Map<String, String> addFiles = stage.getAddFiles();
         for (String fileName : addFiles.keySet()) {
@@ -455,7 +510,7 @@ public class Repository {
             workFileNames = new TreeSet<>(fileNames);
         }
 
-        getFileStatus(workFileNames, modifiedFiles, untrackedFiles);
+        getFileStatus(workFileNames, modifiedFiles, untrackedFiles, GITLET_DIR);
         System.out.println("=== Modifications Not Staged For Commit ===");
         for (Map.Entry<String, String> entry : modifiedFiles.entrySet()) {
             String key = entry.getKey();
@@ -473,10 +528,10 @@ public class Repository {
 
     public static void checkoutFile(String fileName, String commitId) {
         if (commitId == null) {
-            commitId = getCurrentCommitId();
+            commitId = getCurrentCommitId(GITLET_DIR);
         }
 
-        Commit commit = getCommit(commitId);
+        Commit commit = getCommit(commitId, GITLET_DIR);
         if (commit == null) {
             System.out.println("No commit with that id exists.");
             return;
@@ -496,8 +551,8 @@ public class Repository {
     }
 
     public static void checkoutBranch(String branch) {
-        TreeMap<String, String> refs = getRefs();
-        String currentBranch = getCurrentBranch();
+        TreeMap<String, String> refs = getRefs(GITLET_DIR);
+        String currentBranch = getCurrentBranch(GITLET_DIR);
         if (!refs.containsKey(branch)) {
             System.out.println("No such branch exists.");
             return;
@@ -507,72 +562,76 @@ public class Repository {
             return;
         }
         String commitId = refs.get(branch);
-        reset(branch, commitId);
-        saveCurrentBranch(branch);
+        reset(branch, commitId, GITLET_DIR);
+        saveCurrentBranch(branch, GITLET_DIR);
     }
 
     public static void branch(String branch) {
-        TreeMap<String, String> refs = getRefs();
+        TreeMap<String, String> refs = getRefs(GITLET_DIR);
         if (refs.containsKey(branch)) {
             System.out.println("A branch with that name already exists.");
             return;
         }
-        String commitId = getCurrentCommitId();
+        String commitId = getCurrentCommitId(GITLET_DIR);
         refs.put(branch, commitId);
-        saveRefs(refs);
+        saveRefs(refs, GITLET_DIR);
     }
 
     public static void rmBranch(String branch) {
-        TreeMap<String, String> refs = getRefs();
+        TreeMap<String, String> refs = getRefs(GITLET_DIR);
         if (!refs.containsKey(branch)) {
             System.out.println("A branch with that name does not exists.");
             return;
         }
-        String currentBranch = getCurrentBranch();
+        String currentBranch = getCurrentBranch(GITLET_DIR);
         if (branch.equals(currentBranch)) {
             System.out.println("Cannot remove the current branch.");
             return;
         }
         refs.remove(branch);
-        saveRefs(refs);
+        saveRefs(refs, GITLET_DIR);
     }
 
-    public static void reset(String branch, String commitId) {
-        Commit commit = getCommit(commitId);
+    public static void reset(String branch, String commitId, File gitDir) {
+        if (gitDir == null) {
+            gitDir = GITLET_DIR;
+        }
+        Commit commit = getCommit(commitId, gitDir);
         if (commit == null) {
             System.out.println("No commit with that id exists.");
             return;
         }
+        File workDir = gitDir.getParentFile();
 
         //获取modified和untracked文件
         TreeMap<String, String> modifiedFiles = new TreeMap<>();
         TreeSet<String> untrackedFiles = new TreeSet<>();
-        List<String> fileNames = plainFilenamesIn(CWD);
+        List<String> fileNames = plainFilenamesIn(workDir);
         TreeSet<String> workFileNames = new TreeSet<>();
         if (fileNames != null) {
             workFileNames = new TreeSet<>(fileNames);
         }
 
-        getFileStatus(workFileNames, modifiedFiles, untrackedFiles);
+        getFileStatus(workFileNames, modifiedFiles, untrackedFiles, gitDir);
         if (!untrackedFiles.isEmpty()) {
             System.out.println("There is an untracked file in the way; delete it, or add and "
                     + "commit it first.");
             return;
         }
 
-        Stage stage = getStage();
+        Stage stage = getStage(gitDir);
         stage.clear();
-        saveStage(stage);
+        saveStage(stage, gitDir);
 
         if (branch == null) {
-            branch = getCurrentBranch();
+            branch = getCurrentBranch(gitDir);
         }
-        TreeMap<String, String> refs = getRefs();
+        TreeMap<String, String> refs = getRefs(gitDir);
         refs.put(branch, commitId);
-        saveRefs(refs);
+        saveRefs(refs, gitDir);
 
         for (String fileName : workFileNames) {
-            File workFile = new File(CWD, fileName);
+            File workFile = new File(workDir, fileName);
             if (!workFile.delete()) {
                 throw error("Failed to delete file " + fileName);
             }
@@ -582,9 +641,10 @@ public class Repository {
         for (Map.Entry<String, String> entry : commitFiles.entrySet()) {
             String fileName = entry.getKey();
             String blobId = entry.getValue();
-            File commitFile = new File(BLOBS_DIR, blobId);
+            File blobsDir = new File(gitDir, "blobs");
+            File commitFile = new File(blobsDir, blobId);
             String contents = readContentsAsString(commitFile);
-            File workFile = new File(CWD, fileName);
+            File workFile = new File(workDir, fileName);
             try {
                 if (!workFile.createNewFile()) {
                     throw error("Failed to create refs file.");
@@ -598,7 +658,7 @@ public class Repository {
 
     private static HashSet<String> getAllParents(String commitId) {
         HashSet<String> parents = new HashSet<>();
-        Commit commit = getCommit(commitId);
+        Commit commit = getCommit(commitId, GITLET_DIR);
         if (commit == null) {
             throw error("commitId " + commitId + " does not exist.");
         }
@@ -619,7 +679,7 @@ public class Repository {
             return commitId2;
         }
 
-        Commit commit = getCommit(commitId2);
+        Commit commit = getCommit(commitId2, GITLET_DIR);
         if (commit == null) {
             throw error("commitId " + commitId2 + " does not exist.");
         }
@@ -628,7 +688,7 @@ public class Repository {
             if (parents.contains(commitId2)) {
                 return commitId2;
             }
-            commit = getCommit(commitId2);
+            commit = getCommit(commitId2, GITLET_DIR);
             if (commit == null) {
                 throw error("commitId " + commitId2 + " does not exist.");
             }
@@ -639,11 +699,11 @@ public class Repository {
     private static void getFilestatus(String commitId1,
                                       String commitId2,
                                       TreeMap<String, String> modifiedFiles) {
-        Commit commit1 = getCommit(commitId1);
+        Commit commit1 = getCommit(commitId1, GITLET_DIR);
         if (commit1 == null) {
             throw error("commitId " + commitId1 + " does not exist.");
         }
-        Commit commit2 = getCommit(commitId2);
+        Commit commit2 = getCommit(commitId2, GITLET_DIR);
         if (commit2 == null) {
             throw error("commitId " + commitId2 + " does not exist.");
         }
@@ -745,7 +805,7 @@ public class Repository {
 
     public static void merge(String targetBranch) {
         //确认是否有未提交的修改
-        Stage stage = getStage();
+        Stage stage = getStage(GITLET_DIR);
         Map<String, String> addedFiles = stage.getAddFiles();
         Set<String> removeFiles = stage.getRemoveFiles();
         if (!addedFiles.isEmpty() || !removeFiles.isEmpty()) {
@@ -754,20 +814,20 @@ public class Repository {
         }
 
         //确认分支是否存在
-        TreeMap<String, String> refs = getRefs();
+        TreeMap<String, String> refs = getRefs(GITLET_DIR);
         if (!refs.containsKey(targetBranch)) {
             System.out.println("A branch with that name does not exists.");
             return;
         }
 
         //确认是否为当前分支
-        String currentBranch = getCurrentBranch();
+        String currentBranch = getCurrentBranch(GITLET_DIR);
         if (currentBranch.equals(targetBranch)) {
             System.out.println("Cannot merge a branch with itself.");
             return;
         }
 
-        String currentBranchCommitId = getCurrentCommitId();
+        String currentBranchCommitId = getCurrentCommitId(GITLET_DIR);
         String targetBranchCommitId = refs.get(targetBranch);
 //        System.out.println("Target branch commit id: " + targetBranchCommitId);
 //        System.out.println("current branch commit id: " + currentBranchCommitId);
@@ -779,7 +839,7 @@ public class Repository {
         }
 
         if (splitPoint.equals(currentBranchCommitId)) {
-            reset(null, targetBranchCommitId);
+            reset(null, targetBranchCommitId, GITLET_DIR);
             System.out.println("Current branch fast-forwarded.");
             return;
         }
@@ -800,7 +860,7 @@ public class Repository {
             workFileNames = new TreeSet<>(fileNames);
         }
 
-        getFileStatus(workFileNames, modifiedFiles, untrackedFiles);
+        getFileStatus(workFileNames, modifiedFiles, untrackedFiles, GITLET_DIR);
         for (String fileName : untrackedFiles) {
             if (unionKeys.contains(fileName)) {
                 System.out.println("There is an untracked file in the way; delete it, "
@@ -821,6 +881,150 @@ public class Repository {
                 targetBranchCommitId);
         if (conflict) {
             System.out.println("Encountered a merge conflict.");
+        }
+    }
+
+    public static void addRemote(String remoteName, String remoteUrl) {
+        TreeMap<String, String> remoteInfo = getRemoteInfo();
+        if (remoteInfo.containsKey(remoteName)) {
+            System.out.println("A remote with that name already exists.");
+            return;
+        }
+        remoteInfo.put(remoteName, remoteUrl);
+        saveRemoteInfo(remoteInfo);
+    }
+
+    public static void rmRemote(String remoteName) {
+        TreeMap<String, String> remoteInfo = getRemoteInfo();
+        if (!remoteInfo.containsKey(remoteName)) {
+            System.out.println("A remote with that name does not exist.");
+            return;
+        }
+        remoteInfo.remove(remoteName);
+        saveRemoteInfo(remoteInfo);
+    }
+
+    public static void push(String remoteName, String remoteBranchName) {
+        //获取远程仓库分支的head
+        TreeMap<String, String> remoteInfo = getRemoteInfo();
+        String remoteUrl = remoteInfo.get(remoteName);
+        if (remoteUrl == null) {
+            throw new RuntimeException("Remote URL is null.");
+        }
+        File remoteDir = new File(remoteUrl);
+        if (!remoteDir.exists()) {
+            System.out.println("Remote directory not found.");
+            return;
+        }
+        File refsFile = join(remoteDir, "refs");
+
+        @SuppressWarnings("unchecked")
+        TreeMap<String, String> refs = readObject(refsFile, TreeMap.class);
+        String remoteBranchCommitId = refs.get(remoteBranchName);
+
+        //检查是否可以push
+        String currentCommitId = getCurrentCommitId(GITLET_DIR);
+        HashSet<String> commits = new HashSet<>();
+        boolean find = true;
+        while (!currentCommitId.equals(remoteBranchCommitId)) {
+            commits.add(currentCommitId);
+            Commit currentCommit = getCommit(currentCommitId, GITLET_DIR);
+            currentCommitId = currentCommit.getParent();
+            if (currentCommitId == null) {
+                find = false;
+                break;
+            }
+        }
+        if (!find) {
+            System.out.println("Please pull down remote changes before pushing.");
+            return;
+        }
+
+
+        //将当前分支的内容拷贝到远程分支
+        TreeSet<String> blobFiles = new TreeSet<>();
+        for (String commitId : commits) {
+            //获取需要拷贝的blob文件集合
+            Commit commit = getCommit(commitId, GITLET_DIR);
+            Map<String, String> commitFiles = commit.getFileToBlobMap();
+            blobFiles.addAll(commitFiles.values());
+
+            //将commit文件拷贝到远程分支
+
+            saveCommit(commit, commitId, remoteDir);
+//            System.out.println("Commit " + commitId + " has been saved.");
+        }
+
+        //拷贝blobs文件
+        for (String blobId : blobFiles) {
+            String content = readBlob(blobId, GITLET_DIR);
+            saveBlob(content, blobId, remoteDir);
+//            System.out.println("Blob " + blobId + " has been saved.");
+        }
+
+        //reset远程仓库到指定分支
+        refs.put(remoteBranchName, getCurrentCommitId(GITLET_DIR));
+        saveRefs(refs, remoteDir);
+
+//        System.out.println("remoteBranchCommitId " + getCurrentCommitId(GITLET_DIR));
+    }
+
+    public static boolean fetch(String remoteName, String remoteBranchName) {
+        //获取远程仓库信息
+        TreeMap<String, String> remoteInfo = getRemoteInfo();
+        String remoteUrl = remoteInfo.get(remoteName);
+        if (remoteUrl == null) {
+            throw new RuntimeException("Remote URL is null.");
+        }
+
+        //检查远程仓库是否存在
+        File remoteDir = new File(remoteUrl);
+        if (!remoteDir.exists()) {
+            System.out.println("Remote directory not found.");
+            return false;
+        }
+
+        //检查远程仓库是否存在该分支
+        TreeMap<String, String> refs = getRefs(remoteDir);
+        if (!refs.containsKey(remoteBranchName)) {
+            System.out.println("That remote does not have that branch.");
+            return false;
+        }
+        String headCommitId = refs.get(remoteBranchName);
+
+        //在本地仓库创建该远程分支
+        TreeMap<String, String> localRefs = getRefs(GITLET_DIR);
+        String localBranchName = remoteName + "/" + remoteBranchName;
+        localRefs.put(localBranchName, headCommitId);
+        saveRefs(localRefs, GITLET_DIR);
+
+        //获取远程仓库所有需要拷贝的commit
+        TreeSet<String> blobFiles = new TreeSet<>();
+        String currentCommitId = headCommitId;
+        while (currentCommitId != null && getCommit(currentCommitId, GITLET_DIR) == null) {
+            Commit currentCommit = getCommit(headCommitId, remoteDir);
+            //将远程仓库的commit拷贝到本地仓库
+            saveCommit(currentCommit, currentCommitId, GITLET_DIR);
+
+            //保存需要拷贝的blob文件
+            Map<String, String> commitFiles = currentCommit.getFileToBlobMap();
+            blobFiles.addAll(commitFiles.values());
+
+            //遍历链表，更新commit
+            currentCommitId = currentCommit.getParent();
+        }
+
+        //拷贝blobs文件
+        for (String blobId : blobFiles) {
+            String content = readBlob(blobId, remoteDir);
+            saveBlob(content, blobId, GITLET_DIR);
+        }
+        return true;
+    }
+
+    public static void pull(String remoteName, String remoteBranchName) {
+        if (fetch(remoteName, remoteBranchName)) {
+            merge(remoteName + "/" + remoteBranchName);
         }
     }
 }

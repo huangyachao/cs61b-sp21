@@ -111,13 +111,43 @@ public class Main {
             case "reset":
                 validateOperands(firstArg, args, 2);
                 if (validateInitialized()) {
-                    Repository.reset(null, args[1]);
+                    Repository.reset(null, args[1], null);
                 }
                 break;
             case "merge":
                 validateOperands(firstArg, args, 2);
                 if (validateInitialized()) {
                     Repository.merge(args[1]);
+                }
+                break;
+            case "add-remote":
+                validateOperands(firstArg, args, 3);
+                if (validateInitialized()) {
+                    Repository.addRemote(args[1], args[2]);
+                }
+                break;
+            case "rm-remote":
+                validateOperands(firstArg, args, 2);
+                if (validateInitialized()) {
+                    Repository.rmRemote(args[1]);
+                }
+                break;
+            case "push":
+                validateOperands(firstArg, args, 3);
+                if (validateInitialized()) {
+                    Repository.push(args[1], args[2]);
+                }
+                break;
+            case "fetch":
+                validateOperands(firstArg, args, 3);
+                if (validateInitialized()) {
+                    Repository.fetch(args[1], args[2]);
+                }
+                break;
+            case "pull":
+                validateOperands(firstArg, args, 3);
+                if (validateInitialized()) {
+                    Repository.pull(args[1], args[2]);
                 }
                 break;
 
